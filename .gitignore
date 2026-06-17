@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.Python
+
+# YOLO model ağırlıkları (otomatik indirilir, repoya konmaz)
+*.pt
+!.gitkeep
+
+# OmniVision çıktıları
+exports/
+omnivision/exports/
+*.mp4
+*.avi
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Geçici
+*.tmp
+.cache/

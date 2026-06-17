@@ -1,0 +1,68 @@
+# ============================================================
+#  OMNIVISION — Konfigürasyon Dosyası
+#  Tüm runtime parametreleri buradan okunur. Magic number yok.
+#  /api/config POST ile runtime'da güncellenebilir ve buraya yazılır.
+# ============================================================
+
+# Model seçimi: yolov8{n,s,m,l,x}.pt veya yolo11{n,s,m,l,x}.pt
+model: yolo11x.pt
+
+# Inference cihazı: auto | mps | cuda | cpu
+# auto -> MPS (Apple Silicon) > CUDA > CPU önceliğiyle seçilir
+device: auto
+
+# Açılışta kullanılacak kamera index'i (OpenCV VideoCapture index)
+camera_index: 0
+
+# YOLO inference için frame kısa kenar boyutu (letterbox sonrası)
+inference_size: 640
+
+# Hedef işleme FPS'i (kamera bundan yüksekse frame drop edilir)
+target_fps: 30
+
+# Detection eşik değerleri (runtime slider ile değişir)
+confidence: 0.35
+iou: 0.45
+
+# MPS üzerinde yarı hassasiyet (half precision). CPU'da otomatik kapanır.
+half_precision: false
+
+# Her N. frame'i işle (1 = her frame). Düşük donanım için artır.
+frame_skip: 1
+
+# Export çıktılarının kök dizini (~ home'a expand edilir)
+export_dir: ~/OmniVision/exports
+
+# HTTP/WebSocket sunucu ayarları
+server:
+  host: 0.0.0.0
+  port: 8000
+
+# JPEG yayın kalitesi (1-100). Düşürmek bant genişliği azaltır.
+jpeg_quality: 80
+
+# Detection modülleri — açık/kapalı
+modules:
+  tracking: true      # ByteTrack kalıcı track ID + iz (trail)
+  heatmap: true       # Kalabalık yoğunluk ısı haritası
+  zones: true         # Poligon zone analizi + ihlal alarmı
+  speed: false        # Perspektif hız tahmini (kalibrasyon gerekir)
+  dwell: true         # Track bazlı sahnede kalma süresi
+  crossing: true      # Çizgi geçiş sayacı (yönlü)
+  anomaly: true       # Basit anomali (obje sayısı sıçraması) tespiti
+
+# Modül ince ayarları
+module_settings:
+  # Track iz uzunluğu (son N pozisyon)
+  trail_length: 30
+  # Heatmap birikim penceresi (saniye) ve görsel ayarları
+  heatmap_window_seconds: 5.0
+  heatmap_blur_kernel: 51
+  heatmap_decay: 0.92
+  # Dwell highlight eşiği (saniye)
+  dwell_threshold_seconds: 5.0
+  # Anomaly: hareketli ortalama penceresi (saniye) ve çarpan eşiği
+  anomaly_window_seconds: 30.0
+  anomaly_multiplier: 2.0
+  # Hız tahmini: iki referans çizgi arası gerçek dünya mesafesi (metre)
+  speed_real_distance_meters: 5.0

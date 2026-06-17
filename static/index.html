@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OMNIVISION — Local AI Vision Workstation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: #12121a;
+    --panel-2: #181824;
+    --accent: #00ff88;
+    --accent-dim: #0a5;
+    --warn: #ff3366;
+    --text: #e8e8f0;
+    --muted: #7a7a90;
+    --border: #22222e;
+    --mono: 'JetBrains Mono', monospace;
+    --ui: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--ui);
+    height: 100vh;
+    overflow: hidden;
+    font-size: 14px;
+  }
+  /* anomaly aktifken kenar pulse */
+  body.anomaly::after {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 3px var(--warn);
+    animation: edgePulse 1s ease-in-out infinite;
+    z-index: 999;
+  }
+  @keyframes edgePulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+  .app {
+    display: grid;
+    grid-template-rows: 52px 1fr auto auto;
+    grid-template-columns: 1fr 340px;
+    height: 100vh;
+    gap: 1px;
+    background: var(--border);
+  }
+
+  /* ---- header ---- */
+  header {
+    grid-column: 1 / 3;
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .pulse {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+  }
+  .pulse.active { animation: pulseAnim 1.2s ease-in-out infinite; }
+  @keyframes pulseAnim { 0%,100%{opacity:.4;transform:scale(.8)} 50%{opacity:1;transform:scale(1.3)} }
+
+  .badges { display: flex; gap: 8px; margin-left: auto; }
+  .badge {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--panel-2);
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .badge b { color: var(--text); font-weight: 500; }
+  .badge.fps b { color: var(--accent); }
+  .badge.fps.warn b { color: #ffcc00; }
+  .badge.fps.bad b { color: var(--warn); }
+  .gear {
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); width: 34px; height: 34px; border-radius: 6px;
+    cursor: pointer; font-size: 16px;
+  }
+  .gear:hover { border-color: var(--accent); }
+
+  /* ---- main canvas ---- */
+  .stage {
+    background: #000;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  #view {
+    max-width: 100%; max-height: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+  .stage-hint {
+    position: absolute; top: 12px; left: 12px;
+    font-family: var(--mono); font-size: 12px; color: var(--accent);
+    background: rgba(0,0,0,.6); padding: 6px 10px; border-radius: 6px;
+    pointer-events: none;
+  }
+  .anomaly-banner {
+    position: absolute; top: 0; left: 0; right: 0;
+    background: var(--warn); color: #fff;
+    font-weight: 600; text-align: center; padding: 8px;
+    font-family: var(--mono); letter-spacing: 1px;
+    display: none;
+  }
+  .anomaly-banner.show { display: block; animation: edgePulse 1s infinite; }
+
+  /* ---- right side ---- */
+  .side {
+    background: var(--panel);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .side h3 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 2px;
+    color: var(--muted); padding: 12px 14px 6px; text-transform: uppercase;
+  }
+  .log {
+    flex: 1; overflow-y: auto; padding: 0 14px 10px;
+    font-family: var(--mono); font-size: 11px; min-height: 120px;
+  }
+  .log-row {
+    display: flex; gap: 8px; padding: 3px 0;
+    border-bottom: 1px solid var(--border); color: var(--muted);
+    animation: fadeIn .2s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateX(6px)} to{opacity:1} }
+  .log-row .t { color: var(--accent-dim); }
+  .log-row .c { color: var(--text); flex: 1; }
+  .log-row .id { color: var(--accent); }
+
+  .stats { padding: 6px 14px 14px; border-top: 1px solid var(--border); }
+  .stat-row {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 12px; padding: 4px 0;
+    color: var(--muted);
+  }
+  .stat-row b { color: var(--text); font-weight: 500; }
+  .sysbar { height: 5px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin-top: 2px; }
+  .sysbar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+
+  /* ---- bottom controls ---- */
+  .tabs {
+    grid-column: 1 / 3;
+    background: var(--panel);
+    display: flex; gap: 4px; padding: 8px 12px;
+    align-items: center; flex-wrap: wrap;
+  }
+  .tab {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 1px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--muted); padding: 8px 14px; border-radius: 6px; cursor: pointer;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-color: var(--accent); }
+  .tab.rec.active { color: var(--warn); border-color: var(--warn); }
+
+  .classbar {
+    grid-column: 1 / 3;
+    background: var(--panel); padding: 8px 12px;
+    display: flex; gap: 6px; flex-wrap: wrap; overflow-x: auto;
+    max-height: 84px; overflow-y: auto;
+    border-top: 1px solid var(--border);
+  }
+  .chip {
+    font-family: var(--mono); font-size: 11px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--muted); padding: 4px 9px; border-radius: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .chip.on { color: var(--text); border-color: var(--accent-dim); }
+  .chip.off { opacity: .45; }
+
+  /* ---- panel popover ---- */
+  .popover {
+    position: fixed; bottom: 200px; left: 12px; right: 360px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; display: none; z-index: 50;
+    max-height: 50vh; overflow-y: auto;
+  }
+  .popover.show { display: block; }
+  .popover h4 { font-family: var(--mono); color: var(--accent); margin-bottom: 12px; letter-spacing: 1px; }
+  .field { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+  .field label { font-size: 12px; color: var(--muted); min-width: 150px; }
+  .field input[type=range] { flex: 1; accent-color: var(--accent); }
+  .field input[type=number], .field input[type=text], .field select {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 8px; border-radius: 6px; font-family: var(--mono); font-size: 12px;
+  }
+  .field .val { font-family: var(--mono); color: var(--accent); min-width: 48px; text-align: right; }
+  .toggle-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; }
+  .toggle {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--panel); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px;
+    font-size: 12px; cursor: pointer;
+  }
+  .toggle.on { border-color: var(--accent-dim); }
+  .toggle .sw { width: 34px; height: 18px; border-radius: 10px; background: #333; position: relative; transition: .2s; }
+  .toggle.on .sw { background: var(--accent); }
+  .toggle .sw::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#fff; transition:.2s; }
+  .toggle.on .sw::after { left: 18px; }
+  .btn {
+    background: var(--accent); color: #001; border: none; font-weight: 600;
+    padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: var(--mono);
+    font-size: 12px; letter-spacing: 1px;
+  }
+  .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn.warn { background: var(--warn); color: #fff; }
+  .btn:hover { filter: brightness(1.1); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .note { font-size: 11px; color: var(--muted); margin-top: 6px; font-style: italic; }
+  .toast {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #001; padding: 10px 20px; border-radius: 8px;
+    font-family: var(--mono); font-size: 12px; font-weight: 600; z-index: 200;
+    opacity: 0; transition: opacity .3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo"><span class="pulse" id="pulse"></span>OMNIVISION</div>
+    <div class="badges">
+      <div class="badge" id="b-model">model <b>—</b></div>
+      <div class="badge" id="b-device">device <b>—</b></div>
+      <div class="badge fps" id="b-fps">fps <b>0</b></div>
+      <button class="gear" id="gear" title="Ayarlar">⚙</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="anomaly-banner" id="anomaly-banner">⚠ ANOMALİ TESPİT EDİLDİ — obje sayısı normalin üzerinde</div>
+    <div class="stage-hint" id="hint"></div>
+    <canvas id="view" width="1280" height="720"></canvas>
+  </div>
+
+  <aside class="side">
+    <h3>Detection Log</h3>
+    <div class="log" id="log"></div>
+    <div class="stats" id="stats">
+      <div class="stat-row"><span>Objects</span><b id="s-objects">0</b></div>
+      <div class="stat-row"><span>Inference</span><b id="s-latency">0 ms</b></div>
+      <div class="stat-row"><span>Track IDs active</span><b id="s-tracks">0</b></div>
+      <div class="stat-row"><span>Pipeline FPS</span><b id="s-pfps">0</b></div>
+      <div class="stat-row"><span>Crossing A→B / B→A</span><b id="s-cross">0 / 0</b></div>
+      <div class="stat-row"><span>CPU</span><b id="s-cpu">0%</b></div>
+      <div class="sysbar"><i id="bar-cpu"></i></div>
+      <div class="stat-row"><span>RAM</span><b id="s-ram">0%</b></div>
+      <div class="sysbar"><i id="bar-ram"></i></div>
+      <div class="stat-row"><span>GPU/MPS mem</span><b id="s-gpu">—</b></div>
+      <div class="stat-row"><span>Buffer / Queue</span><b id="s-buf">—</b></div>
+      <div class="stat-row"><span>Uptime</span><b id="s-up">0s</b></div>
+    </div>
+  </aside>
+
+  <div class="tabs">
+    <div class="tab" data-panel="modules">MODULES</div>
+    <div class="tab" data-panel="camera">CAMERA</div>
+    <div class="tab" data-panel="zones">ZONES</div>
+    <div class="tab" data-panel="export">EXPORT</div>
+    <div class="tab rec" id="tab-record">● RECORD</div>
+    <div style="margin-left:auto" class="badge" id="b-conn">WS <b>bağlanıyor…</b></div>
+  </div>
+
+  <div class="classbar" id="classbar"></div>
+</div>
+
+<!-- ---- popover panels ---- -->
+<div class="popover" id="popover"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  OMNIVISION Frontend — vanilla JS, bağımlılık yok
+// ============================================================
+const $ = (id) => document.getElementById(id);
+const API = (p) => '/api' + p;
+
+const state = {
+  ws: null,
+  last: null,            // son payload
+  classes: [],
+  classOn: {},           // class_id -> bool (UI filtresi)
+  config: {},
+  // canvas etkileşim modları: null | 'zone' | 'line' | 'speed'
+  drawMode: null,
+  tempPoints: [],        // zone çizimi sırasında biriken noktalar
+  dragging: null,        // line/speed sürükleme
+  showHeatmap: true,
+  heatmapOpacity: 0.5,
+  heatImg: new Image(),
+  bgImg: new Image(),
+  fadeMap: {},           // track_id -> ilk görülme zamanı (fade-in)
+};
+
+const canvas = $('view');
+const ctx = canvas.getContext('2d');
+
+// ---------- WebSocket ----------
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  state.ws = new WebSocket(`${proto}://${location.host}/ws`);
+  state.ws.onopen = () => setConn(true);
+  state.ws.onclose = () => { setConn(false); setTimeout(connect, 1500); };
+  state.ws.onmessage = (ev) => {
+    try { state.last = JSON.parse(ev.data); onFrame(state.last); }
+    catch (e) { /* bozuk paket yok say */ }
+  };
+}
+function setConn(ok) {
+  $('b-conn').innerHTML = 'WS <b style="color:' + (ok ? 'var(--accent)' : 'var(--warn)') + '">' + (ok ? 'bağlı' : 'kopuk') + '</b>';
+}
+
+// ---------- her frame ----------
+function onFrame(p) {
+  if (!p) return;
+  if (p.image) {
+    state.bgImg.onload = () => draw(p);
+    state.bgImg.src = p.image;
+  } else {
+    draw(p);
+  }
+  if (p.heatmap && state.showHeatmap) {
+    state.heatImg.src = p.heatmap;
+  } else {
+    state.heatImg.src = '';
+  }
+  updateStats(p);
+  updateLog(p.detections || []);
+  // anomaly
+  const anom = p.anomaly && p.anomaly.is_anomaly;
+  document.body.classList.toggle('anomaly', !!anom);
+  $('anomaly-banner').classList.toggle('show', !!anom);
+}
+
+function draw(p) {
+  const w = p.width || 1280, h = p.height || 720;
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  ctx.clearRect(0, 0, w, h);
+
+  // arka plan video
+  if (state.bgImg.complete && state.bgImg.naturalWidth) {
+    ctx.drawImage(state.bgImg, 0, 0, w, h);
+  } else {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  }
+
+  // heatmap overlay
+  if (state.showHeatmap && state.heatImg.complete && state.heatImg.naturalWidth) {
+    ctx.globalAlpha = state.heatmapOpacity;
+    ctx.drawImage(state.heatImg, 0, 0, w, h);
+    ctx.globalAlpha = 1;
+  }
+
+  drawTrails(p, w, h);
+  drawDetections(p, w, h);
+  drawZones(p, w, h);
+  drawCrossingLine(p, w, h);
+  drawSpeedLines(p, w, h);
+  drawTempZone(w, h);
+}
+
+function drawDetections(p, w, h) {
+  const now = performance.now();
+  (p.detections || []).forEach(d => {
+    const [x1, y1, x2, y2] = d.bbox;
+    const [r, g, b] = d.color;
+    // fade-in
+    if (d.track_id != null && !state.fadeMap[d.track_id]) state.fadeMap[d.track_id] = now;
+    const start = d.track_id != null ? state.fadeMap[d.track_id] : now - 200;
+    const a = Math.min(1, (now - start) / 200);
+    ctx.globalAlpha = a;
+    const col = `rgb(${r},${g},${b})`;
+    ctx.lineWidth = d.is_dwelling ? 4 : 2;
+    ctx.strokeStyle = d.is_dwelling ? '#ffcc00' : col;
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+    let label = d.class_name;
+    if (d.track_id != null) label += ' #' + d.track_id;
+    label += ' ' + (d.confidence * 100).toFixed(0) + '%';
+    if (d.speed_mps != null) label += ' • ' + d.speed_mps.toFixed(1) + 'm/s';
+    if (d.dwell_seconds != null && d.is_dwelling) label += ' • ' + d.dwell_seconds.toFixed(0) + 's';
+    ctx.font = '600 13px JetBrains Mono, monospace';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = col;
+    ctx.fillRect(x1, y1 - 18, tw + 10, 18);
+    ctx.fillStyle = '#000';
+    ctx.fillText(label, x1 + 5, y1 - 5);
+    ctx.globalAlpha = 1;
+  });
+}
+
+function drawTrails(p, w, h) {
+  const trails = p.trails || {};
+  Object.keys(trails).forEach(tid => {
+    const pts = trails[tid];
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    pts.forEach((pt, i) => {
+      const x = pt[0] * w, y = pt[1] * h;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = 'rgba(0,255,136,0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+}
+
+function drawZones(p, w, h) {
+  (p.zones || []).forEach(z => {
+    if (z.points.length < 2) return;
+    ctx.beginPath();
+    z.points.forEach((pt, i) => {
+      const x = pt[0] * w, y = pt[1] * h;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    const col = z.violated ? '255,51,102' : '0,255,136';
+    ctx.fillStyle = `rgba(${col},0.12)`;
+    ctx.strokeStyle = `rgb(${col})`;
+    ctx.lineWidth = 2;
+    ctx.fill(); ctx.stroke();
+    // etiket
+    const cx = z.points[0][0] * w, cy = z.points[0][1] * h;
+    ctx.fillStyle = `rgb(${col})`;
+    ctx.font = '600 13px JetBrains Mono';
+    ctx.fillText(`${z.name}: ${z.count}/${z.threshold}`, cx + 4, cy - 6);
+  });
+}
+
+function drawCrossingLine(p, w, h) {
+  const c = p.crossing; if (!c || !c.line) return;
+  if (!modOn('crossing')) return;
+  const l = c.line;
+  ctx.beginPath();
+  ctx.moveTo(l.x1 * w, l.y1 * h);
+  ctx.lineTo(l.x2 * w, l.y2 * h);
+  ctx.strokeStyle = '#00ccff'; ctx.lineWidth = 3;
+  ctx.setLineDash([10, 6]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#00ccff'; ctx.font = '600 13px JetBrains Mono';
+  ctx.fillText(`A→B ${c.count_a_to_b} | B→A ${c.count_b_to_a}`, l.x1 * w, l.y1 * h - 8);
+}
+
+function drawSpeedLines(p, w, h) {
+  if (!modOn('speed')) return;
+  const s = p.speed; if (!s) return;
+  [['A', s.line_a_y], ['B', s.line_b_y]].forEach(([n, y]) => {
+    ctx.beginPath(); ctx.moveTo(0, y * h); ctx.lineTo(w, y * h);
+    ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#ffaa00'; ctx.font = '600 12px JetBrains Mono';
+    ctx.fillText('LINE ' + n, 8, y * h - 6);
+  });
+  if (!s.calibrated) {
+    ctx.fillStyle = '#ffaa00'; ctx.font = '600 12px JetBrains Mono';
+    ctx.fillText('⚠ KALİBRASYONSUZ MOD — hızlar yaklaşık', 8, h - 12);
+  }
+}
+
+function drawTempZone(w, h) {
+  if (state.drawMode !== 'zone' || state.tempPoints.length === 0) return;
+  ctx.beginPath();
+  state.tempPoints.forEach((pt, i) => {
+    const x = pt[0] * w, y = pt[1] * h;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    ctx.fillStyle = '#00ff88'; ctx.fillRect(x - 3, y - 3, 6, 6);
+  });
+  ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 2; ctx.stroke();
+}
+
+// ---------- stats / log ----------
+function updateStats(p) {
+  const e = p.stats?.engine || {}, sys = p.stats?.system || {}, cam = p.stats?.camera || {};
+  $('b-model').innerHTML = 'model <b>' + (e.model || '—') + '</b>';
+  $('b-device').innerHTML = 'device <b>' + (e.device || '—').toUpperCase() + '</b>';
+  const fps = p.stats?.pipeline_fps || 0;
+  const fb = $('b-fps');
+  fb.innerHTML = 'fps <b>' + fps.toFixed(0) + '</b>';
+  fb.className = 'badge fps' + (fps < 8 ? ' bad' : fps < 15 ? ' warn' : '');
+  $('pulse').classList.toggle('active', !!e.ready);
+
+  $('s-objects').textContent = (p.detections || []).length;
+  $('s-latency').textContent = (e.latency_ms || 0).toFixed(0) + ' ms';
+  $('s-tracks').textContent = p.stats?.active_tracks || 0;
+  $('s-pfps').textContent = fps.toFixed(1);
+  const c = p.crossing || {};
+  $('s-cross').textContent = (c.count_a_to_b || 0) + ' / ' + (c.count_b_to_a || 0);
+  $('s-cpu').textContent = (sys.cpu_percent || 0).toFixed(0) + '%';
+  $('bar-cpu').style.width = (sys.cpu_percent || 0) + '%';
+  $('s-ram').textContent = (sys.ram_percent || 0).toFixed(0) + '%';
+  $('bar-ram').style.width = (sys.ram_percent || 0) + '%';
+  $('s-gpu').textContent = sys.gpu_mem_mb != null ? sys.gpu_mem_mb + ' MB' : '—';
+  $('s-buf').textContent = (cam.buffer_fill ?? '—') + ' / ' + (cam.dropped_frames ?? 0) + ' drop';
+  $('s-up').textContent = fmtTime(sys.uptime_seconds || 0);
+}
+
+let logBuffer = [];
+function updateLog(dets) {
+  const now = new Date().toLocaleTimeString('tr-TR', { hour12: false });
+  dets.slice(0, 5).forEach(d => {
+    logBuffer.unshift({ t: now, c: d.class_name, id: d.track_id, conf: d.confidence });
+  });
+  logBuffer = logBuffer.slice(0, 60);
+  $('log').innerHTML = logBuffer.map(r =>
+    `<div class="log-row"><span class="t">${r.t}</span><span class="c">${r.c}</span>` +
+    (r.id != null ? `<span class="id">#${r.id}</span>` : '') +
+    `<span>${(r.conf * 100).toFixed(0)}%</span></div>`
+  ).join('');
+}
+
+function fmtTime(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return (h ? h + 'h ' : '') + (m ? m + 'm ' : '') + sec + 's';
+}
+function modOn(name) { return state.config?.modules?.[name]; }
+
+// ---------- canvas etkileşimi ----------
+function canvasPt(ev) {
+  const r = canvas.getBoundingClientRect();
+  return [(ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height];
+}
+canvas.addEventListener('click', (ev) => {
+  if (state.drawMode === 'zone') {
+    state.tempPoints.push(canvasPt(ev));
+  }
+});
+canvas.addEventListener('dblclick', () => {
+  if (state.drawMode === 'zone' && state.tempPoints.length >= 3) {
+    post('/zones', { points: state.tempPoints, name: '', threshold: 5 });
+    state.tempPoints = []; state.drawMode = null; setHint('');
+  }
+});
+canvas.addEventListener('mousedown', (ev) => {
+  if (state.drawMode === 'line') { state.dragging = { start: canvasPt(ev) }; }
+  if (state.drawMode === 'speed') { state.dragging = { speed: true, start: canvasPt(ev) }; }
+});
+canvas.addEventListener('mouseup', (ev) => {
+  if (state.drawMode === 'line' && state.dragging) {
+    const a = state.dragging.start, b = canvasPt(ev);
+    post('/crossing/line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1] });
+    state.dragging = null; state.drawMode = null; setHint('');
+  } else if (state.drawMode === 'speed' && state.dragging) {
+    const a = state.dragging.start[1], b = canvasPt(ev)[1];
+    post('/speed/config', { line_a_y: Math.min(a, b), line_b_y: Math.max(a, b) });
+    state.dragging = null; state.drawMode = null; setHint('');
+  }
+});
+function setHint(t) { $('hint').textContent = t; }
+
+// ---------- API yardımcıları ----------
+async function get(p) { return (await fetch(API(p))).json(); }
+async function post(p, body) {
+  const r = await fetch(API(p), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  return r.json();
+}
+async function del(p) { return (await fetch(API(p), { method: 'DELETE' })).json(); }
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ---------- class filter ----------
+async function loadClasses() {
+  const data = await get('/classes');
+  state.classes = data.classes;
+  state.classes.forEach(c => state.classOn[c.id] = true);
+  renderClasses();
+}
+function renderClasses() {
+  const bar = $('classbar');
+  bar.innerHTML = state.classes.map(c => {
+    const on = state.classOn[c.id];
+    const h = (c.id * 137.5) % 360;
+    return `<div class="chip ${on ? 'on' : 'off'}" data-cid="${c.id}">
+      <span class="dot" style="background:hsl(${h},65%,55%)"></span>${c.name}</div>`;
+  }).join('');
+  bar.querySelectorAll('.chip').forEach(ch => ch.onclick = () => {
+    const id = +ch.dataset.cid;
+    state.classOn[id] = !state.classOn[id];
+    renderClasses();
+    pushClassFilter();
+  });
+}
+function pushClassFilter() {
+  const ids = state.classes.filter(c => state.classOn[c.id]).map(c => c.id);
+  // hepsi açıksa filtre yok (null), değilse seçili id'ler
+  post('/filter/classes', { class_ids: ids.length === state.classes.length ? null : ids });
+}
+
+// ---------- popover panelleri ----------
+const pop = $('popover');
+let activePanel = null;
+function openPanel(name) {
+  if (activePanel === name) { closePanel(); return; }
+  activePanel = name;
+  document.querySelectorAll('.tab[data-panel]').forEach(t =>
+    t.classList.toggle('active', t.dataset.panel === name));
+  pop.classList.add('show');
+  if (name === 'modules') renderModules();
+  if (name === 'camera') renderCamera();
+  if (name === 'zones') renderZones();
+  if (name === 'export') renderExport();
+}
+function closePanel() {
+  activePanel = null; pop.classList.remove('show');
+  document.querySelectorAll('.tab[data-panel]').forEach(t => t.classList.remove('active'));
+}
+
+function renderModules() {
+  const m = state.config.modules || {};
+  const sliders = `
+    <h4>INFERENCE & MODÜLLER</h4>
+    <div class="field"><label>Confidence</label>
+      <input type="range" id="cf-conf" min="0.05" max="0.95" step="0.05" value="${state.config.confidence}">
+      <span class="val" id="v-conf">${state.config.confidence}</span></div>
+    <div class="field"><label>IoU threshold</label>
+      <input type="range" id="cf-iou" min="0.1" max="0.9" step="0.05" value="${state.config.iou}">
+      <span class="val" id="v-iou">${state.config.iou}</span></div>
+    <div class="field"><label>Model</label>
+      <select id="cf-model">
+        ${['yolo11n.pt','yolo11s.pt','yolo11m.pt','yolo11l.pt','yolo11x.pt','yolov8n.pt','yolov8s.pt','yolov8m.pt','yolov8l.pt','yolov8x.pt']
+          .map(mm => `<option ${mm === state.config.model ? 'selected' : ''}>${mm}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Frame skip (her N. frame)</label>
+      <input type="number" id="cf-skip" min="1" max="10" value="${state.config.frame_skip || 1}" style="width:70px"></div>
+    <div class="field"><label>Heatmap opacity</label>
+      <input type="range" id="cf-hm" min="0" max="1" step="0.05" value="${state.heatmapOpacity}">
+      <span class="val" id="v-hm">${state.heatmapOpacity}</span></div>`;
+  const mods = ['tracking','heatmap','zones','speed','dwell','crossing','anomaly'];
+  const grid = `<div class="toggle-grid">` + mods.map(name =>
+    `<div class="toggle ${m[name] ? 'on' : ''}" data-mod="${name}"><span>${name}</span><span class="sw"></span></div>`
+  ).join('') + `</div>`;
+  pop.innerHTML = sliders + grid;
+
+  bindRange('cf-conf', 'v-conf', v => post('/config', { data: { confidence: +v } }));
+  bindRange('cf-iou', 'v-iou', v => post('/config', { data: { iou: +v } }));
+  bindRange('cf-hm', 'v-hm', v => { state.heatmapOpacity = +v; });
+  $('cf-model').onchange = e => { post('/config', { data: { model: e.target.value } }); toast('Model değiştiriliyor: ' + e.target.value); };
+  $('cf-skip').onchange = e => post('/config', { data: { frame_skip: +e.target.value } });
+  pop.querySelectorAll('.toggle[data-mod]').forEach(t => t.onclick = async () => {
+    const name = t.dataset.mod; const nv = !t.classList.contains('on');
+    await post('/config', { data: { modules: { [name]: nv } } });
+    state.config.modules[name] = nv; t.classList.toggle('on', nv);
+  });
+}
+function bindRange(id, vid, cb) {
+  const el = $(id);
+  el.oninput = () => { $(vid).textContent = el.value; };
+  el.onchange = () => cb(el.value);
+}
+
+async function renderCamera() {
+  pop.innerHTML = '<h4>KAMERA</h4><div class="note">Kameralar taranıyor…</div>';
+  const data = await get('/cameras');
+  const cams = data.cameras || [];
+  const opts = cams.map(c => `<option value="${c.id}">${c.name} — ${c.resolution} @ ${c.fps}fps</option>`).join('');
+  pop.innerHTML = `<h4>KAMERA YÖNETİMİ</h4>
+    <div class="field"><label>Aktif kamera</label>
+      <select id="cam-sel">${opts || '<option>Kamera bulunamadı</option>'}</select></div>
+    <div class="field"><label>Çözünürlük</label>
+      <select id="cam-res">
+        <option value="480p">480p</option><option value="720p" selected>720p</option>
+        <option value="1080p">1080p</option><option value="native">native</option>
+      </select></div>
+    <div class="field"><label>Hedef FPS</label>
+      <input type="number" id="cam-fps" value="30" min="1" max="120" style="width:70px"></div>
+    <div class="row">
+      <button class="btn" id="cam-switch">GEÇİŞ YAP</button>
+      <button class="btn ghost" id="cam-rescan">YENİDEN TARA</button>
+      <button class="btn ghost" id="trk-reset">TRACKER SIFIRLA</button>
+    </div>
+    <div class="note">iPhone Continuity Camera macOS 13+ üzerinde otomatik listelenir.</div>`;
+  $('cam-switch').onclick = async () => {
+    const r = await post('/cameras/switch', {
+      index: +$('cam-sel').value, resolution: $('cam-res').value, target_fps: +$('cam-fps').value });
+    toast(r.status === 'ok' ? 'Kamera değişti' : (r.message || 'Hata'));
+  };
+  $('cam-rescan').onclick = renderCamera;
+  $('trk-reset').onclick = async () => { await post('/tracker/reset'); toast('Tracker sıfırlandı'); };
+}
+
+function renderZones() {
+  const z = state.last?.zones || [];
+  pop.innerHTML = `<h4>ZONE & ÇİZGİ ARAÇLARI</h4>
+    <div class="row">
+      <button class="btn" id="z-draw">+ ZONE ÇİZ (poligon)</button>
+      <button class="btn ghost" id="z-line">ÇİZGİ ÇİZ (geçiş)</button>
+      <button class="btn ghost" id="z-speed">HIZ ÇİZGİLERİ</button>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="z-export">ZONE EXPORT (JSON)</button>
+      <button class="btn ghost" id="z-import">ZONE IMPORT</button>
+      <button class="btn warn" id="z-clear">TÜMÜNÜ SİL</button>
+      <button class="btn ghost" id="c-reset">GEÇİŞ SAYACI SIFIRLA</button>
+    </div>
+    <div class="field"><label>Hız: gerçek mesafe (m)</label>
+      <input type="number" id="sp-dist" value="${state.last?.speed?.real_distance_meters || 5}" step="0.5" style="width:80px">
+      <button class="btn ghost" id="sp-set">UYGULA</button></div>
+    <div class="note">Zone çizimi: noktalara tıkla, bitirmek için çift tıkla. Çizgi/hız: sürükle.</div>
+    <div style="margin-top:10px">${z.map(zz => `<div class="stat-row"><span>${zz.name} (eşik ${zz.threshold})</span>
+      <b style="color:${zz.violated ? 'var(--warn)' : 'var(--accent)'}">${zz.count} obje</b></div>`).join('')}</div>`;
+  $('z-draw').onclick = () => { state.drawMode = 'zone'; state.tempPoints = []; setHint('ZONE: noktalara tıkla, çift tıkla→bitir'); closePanel(); };
+  $('z-line').onclick = () => { state.drawMode = 'line'; setHint('ÇİZGİ: başlangıçtan bitişe sürükle'); closePanel(); };
+  $('z-speed').onclick = () => { state.drawMode = 'speed'; setHint('HIZ: iki yatay çizgi için dikey sürükle'); closePanel(); };
+  $('z-clear').onclick = async () => { await post('/zones/clear'); toast('Zone\'lar silindi'); };
+  $('c-reset').onclick = async () => { await post('/crossing/reset'); toast('Geçiş sayacı sıfırlandı'); };
+  $('sp-set').onclick = async () => { await post('/speed/config', { real_distance_meters: +$('sp-dist').value }); toast('Hız kalibre edildi'); };
+  $('z-export').onclick = async () => {
+    const data = await get('/zones');
+    downloadJSON(data.zones, 'omnivision_zones.json'); toast('Zone\'lar indirildi');
+  };
+  $('z-import').onclick = () => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json';
+    inp.onchange = async () => {
+      const txt = await inp.files[0].text();
+      await post('/zones/import', { zones: JSON.parse(txt) }); toast('Zone\'lar yüklendi');
+    };
+    inp.click();
+  };
+}
+
+function renderExport() {
+  pop.innerHTML = `<h4>EXPORT & KAYIT</h4>
+    <div class="row">
+      <button class="btn" id="ex-snap">📸 SNAPSHOT (PNG)</button>
+    </div>
+    <div class="field"><label>Log süresi (dakika)</label>
+      <input type="number" id="ex-min" value="5" min="1" style="width:70px">
+      <button class="btn ghost" id="ex-json">JSON EXPORT</button>
+      <button class="btn ghost" id="ex-csv">CSV EXPORT</button>
+    </div>
+    <div class="note">Tüm dosyalar ~/OmniVision/exports/ altına kaydedilir.</div>`;
+  $('ex-snap').onclick = async () => { const r = await post('/snapshot'); toast(r.path ? 'Kaydedildi: ' + r.path : 'Hata'); };
+  $('ex-json').onclick = async () => { const r = await post('/export/log', { minutes: +$('ex-min').value, format: 'json' }); toast('JSON: ' + r.path); };
+  $('ex-csv').onclick = async () => { const r = await post('/export/log', { minutes: +$('ex-min').value, format: 'csv' }); toast('CSV: ' + r.path); };
+}
+
+function downloadJSON(obj, name) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+}
+
+// ---------- record ----------
+$('tab-record').onclick = async () => {
+  const r = await post('/record/toggle');
+  const on = r.recording;
+  $('tab-record').classList.toggle('active', on);
+  $('tab-record').textContent = on ? '■ STOP REC' : '● RECORD';
+  toast(on ? 'Kayıt başladı' : 'Kayıt durduruldu: ' + (r.path || ''));
+};
+
+// ---------- init ----------
+document.querySelectorAll('.tab[data-panel]').forEach(t =>
+  t.onclick = () => openPanel(t.dataset.panel));
+$('gear').onclick = () => openPanel('modules');
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePanel(); state.drawMode = null; setHint(''); } });
+
+async function init() {
+  state.config = await get('/config');
+  await loadClasses();
+  connect();
+}
+init();
+</script>
+</body>
+</html>
