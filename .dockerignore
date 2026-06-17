@@ -1,0 +1,16 @@
+.git
+.github
+.claude
+__pycache__
+*.pyc
+.venv
+venv
+exports
+*.mp4
+*.avi
+*.pt
+tests
+.ruff_cache
+.pytest_cache
+*.md
+!README.md

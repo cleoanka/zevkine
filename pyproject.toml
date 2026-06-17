@@ -1,0 +1,44 @@
+[project]
+name = "omnivision"
+version = "1.0.0"
+description = "macOS gerçek zamanlı çok modlu CV vision workstation (YOLO11x/YOLOv8x)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "ultralytics>=8.3.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "opencv-python>=4.9.0",
+    "Pillow>=10.0.0",
+    "numpy>=1.26.0",
+    "psutil>=5.9.0",
+    "pyyaml>=6.0",
+    "websockets>=12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.5.0",
+    "pytest>=8.0.0",
+    "opencv-python-headless>=4.9.0",
+]
+
+[tool.setuptools]
+# Bu bir uygulama; paket olarak kurulmaz. py-modules boş bırakılır.
+py-modules = []
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+# Üçüncü parti ağırlık dosyaları / export çıktıları hariç
+extend-exclude = ["exports", "*.pt"]
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: isort, UP: pyupgrade, B: bugbear
+select = ["E", "W", "F", "I", "UP", "B"]
+# E501 (satır uzunluğu) formatter'a bırakılır; B008 FastAPI Depends pattern'i
+ignore = ["E501", "B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
