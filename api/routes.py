@@ -7,7 +7,7 @@ Tüm /api/* uçları burada. Pipeline nesnesine request.app.state.pipeline
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -32,12 +32,12 @@ class ConfigUpdate(BaseModel):
 
 class CameraSwitch(BaseModel):
     index: int
-    resolution: Optional[str] = None
-    target_fps: Optional[float] = None
+    resolution: str | None = None
+    target_fps: float | None = None
 
 
 class ClassFilter(BaseModel):
-    class_ids: Optional[list[int]] = None
+    class_ids: list[int] | None = None
 
 
 class ZoneCreate(BaseModel):
@@ -58,9 +58,9 @@ class LineConfig(BaseModel):
 
 
 class SpeedConfig(BaseModel):
-    line_a_y: Optional[float] = None
-    line_b_y: Optional[float] = None
-    real_distance_meters: Optional[float] = None
+    line_a_y: float | None = None
+    line_b_y: float | None = None
+    real_distance_meters: float | None = None
 
 
 class LogExport(BaseModel):
@@ -141,9 +141,7 @@ def get_zones(request: Request) -> dict:
 
 @router.post("/zones")
 def add_zone(request: Request, body: ZoneCreate) -> dict:
-    zone = _pipeline(request).zones.add_zone(
-        body.points, body.name, body.threshold
-    )
+    zone = _pipeline(request).zones.add_zone(body.points, body.name, body.threshold)
     return {"status": "ok", "zone": zone.to_dict()}
 
 

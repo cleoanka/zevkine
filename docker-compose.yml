@@ -1,0 +1,20 @@
+# OmniVision — Linux dağıtımı için compose dosyası.
+# Kamera erişimi: host'taki /dev/video0'ı container'a bağlar.
+services:
+  omnivision:
+    build: .
+    ports:
+      - "8000:8000"
+    devices:
+      - "/dev/video0:/dev/video0"
+    volumes:
+      - "~/OmniVision/exports:/root/OmniVision/exports"
+    restart: unless-stopped
+    # CUDA için (nvidia-container-toolkit kuruluysa) yorumları aç:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]

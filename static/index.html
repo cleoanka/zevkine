@@ -381,6 +381,12 @@ function draw(p) {
   drawTempZone(w, h);
 }
 
+// COCO-17 pose iskelet bağlantıları (YOLO26-pose çıktısı için)
+const SKELETON = [
+  [5,7],[7,9],[6,8],[8,10],[5,6],[5,11],[6,12],[11,12],
+  [11,13],[13,15],[12,14],[14,16],[0,1],[0,2],[1,3],[2,4],[0,5],[0,6]
+];
+
 function drawDetections(p, w, h) {
   const now = performance.now();
   (p.detections || []).forEach(d => {
@@ -392,9 +398,40 @@ function drawDetections(p, w, h) {
     const a = Math.min(1, (now - start) / 200);
     ctx.globalAlpha = a;
     const col = `rgb(${r},${g},${b})`;
+
+    // segmentasyon maskesi (YOLO26-seg) — kutudan önce, yarı saydam dolgu
+    if (d.mask && d.mask.length > 2) {
+      ctx.beginPath();
+      d.mask.forEach((pt, i) => { i === 0 ? ctx.moveTo(pt[0], pt[1]) : ctx.lineTo(pt[0], pt[1]); });
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${r},${g},${b},0.22)`;
+      ctx.fill();
+    }
+
     ctx.lineWidth = d.is_dwelling ? 4 : 2;
     ctx.strokeStyle = d.is_dwelling ? '#ffcc00' : col;
     ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+    // pose iskeleti (YOLO26-pose) — düşük güvenli noktalar atlanır
+    if (d.keypoints && d.keypoints.length >= 17) {
+      const kp = d.keypoints;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgb(${r},${g},${b})`;
+      SKELETON.forEach(([i, j]) => {
+        if (kp[i][2] < 0.3 || kp[j][2] < 0.3) return;
+        ctx.beginPath();
+        ctx.moveTo(kp[i][0], kp[i][1]);
+        ctx.lineTo(kp[j][0], kp[j][1]);
+        ctx.stroke();
+      });
+      ctx.fillStyle = '#fff';
+      kp.forEach(pt => {
+        if (pt[2] < 0.3) return;
+        ctx.beginPath();
+        ctx.arc(pt[0], pt[1], 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
 
     let label = d.class_name;
     if (d.track_id != null) label += ' #' + d.track_id;
@@ -639,7 +676,11 @@ function renderModules() {
       <span class="val" id="v-iou">${state.config.iou}</span></div>
     <div class="field"><label>Model</label>
       <select id="cf-model">
-        ${['yolo11n.pt','yolo11s.pt','yolo11m.pt','yolo11l.pt','yolo11x.pt','yolov8n.pt','yolov8s.pt','yolov8m.pt','yolov8l.pt','yolov8x.pt']
+        ${['yolo26n.pt','yolo26s.pt','yolo26m.pt','yolo26l.pt','yolo26x.pt',
+           'yolo26n-pose.pt','yolo26s-pose.pt','yolo26m-pose.pt',
+           'yolo26n-seg.pt','yolo26s-seg.pt','yolo26m-seg.pt',
+           'yolo11n.pt','yolo11s.pt','yolo11m.pt','yolo11l.pt','yolo11x.pt',
+           'yolov8n.pt','yolov8s.pt','yolov8m.pt','yolov8l.pt','yolov8x.pt']
           .map(mm => `<option ${mm === state.config.model ? 'selected' : ''}>${mm}</option>`).join('')}
       </select></div>
     <div class="field"><label>Frame skip (her N. frame)</label>

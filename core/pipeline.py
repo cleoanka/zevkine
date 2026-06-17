@@ -15,7 +15,7 @@ import base64
 import threading
 import time
 from collections import deque
-from typing import Any, Optional
+from typing import Any
 
 import cv2
 import numpy as np
@@ -23,7 +23,7 @@ import psutil
 
 from .camera import CameraManager
 from .config import Config
-from .detection import COCO_CLASSES, Detection
+from .detection import Detection
 from .inference import YOLOEngine
 from .modules import (
     AnomalyModule,
@@ -44,7 +44,7 @@ class Pipeline:
 
         self.camera = CameraManager(max_probe=10)
         self.engine = YOLOEngine(
-            model_name=config.get("model", "yolo11x.pt"),
+            model_name=config.get("model", "yolo26x.pt"),
             device_pref=config.get("device", "auto"),
             confidence=config.get("confidence", 0.35),
             iou=config.get("iou", 0.45),
@@ -72,19 +72,19 @@ class Pipeline:
         self.recorder = VideoRecorder(config.export_dir)
 
         # Sınıf filtresi: None -> tümü
-        self.class_filter: Optional[list[int]] = None
+        self.class_filter: list[int] | None = None
 
         # En güncel çıktı (thread-safe)
         self._payload_lock = threading.RLock()
         self._latest_payload: dict[str, Any] = {}
-        self._latest_jpeg: Optional[bytes] = None
+        self._latest_jpeg: bytes | None = None
 
         # Detection event log (ring buffer)
         self._event_log: deque = deque(maxlen=5000)
 
         # Pipeline thread kontrolü
         self._running = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._frame_counter = 0
         self._start_time = time.monotonic()
         self._pipeline_fps_samples: deque = deque(maxlen=30)
@@ -176,9 +176,7 @@ class Pipeline:
                 self._latest_payload = payload
                 self._latest_jpeg = jpeg_bytes
 
-    def _run_modules(
-        self, dets: list[Detection], frame_shape: tuple[int, int]
-    ) -> None:
+    def _run_modules(self, dets: list[Detection], frame_shape: tuple[int, int]) -> None:
         mods = self.config.get("modules", {})
         if mods.get("tracking", True):
             self.trails.update(dets, frame_shape)
@@ -197,9 +195,7 @@ class Pipeline:
 
     # ----- annotate (kayıt için sunucu tarafı çizim) --------------------------
 
-    def _annotate(
-        self, frame: np.ndarray, dets: list[Detection]
-    ) -> np.ndarray:
+    def _annotate(self, frame: np.ndarray, dets: list[Detection]) -> np.ndarray:
         """Kayıt edilen MP4 için bbox/label çizimi (BGR)."""
         for det in dets:
             x1, y1, x2, y2 = (int(v) for v in det.bbox)
@@ -210,12 +206,8 @@ class Pipeline:
             if det.track_id is not None:
                 label += f" #{det.track_id}"
             label += f" {det.confidence:.2f}"
-            (tw, th), _ = cv2.getTextSize(
-                label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
-            )
-            cv2.rectangle(
-                frame, (x1, y1 - th - 6), (x1 + tw + 4, y1), color, -1
-            )
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            cv2.rectangle(frame, (x1, y1 - th - 6), (x1 + tw + 4, y1), color, -1)
             cv2.putText(
                 frame,
                 label,
@@ -249,7 +241,7 @@ class Pipeline:
         self,
         dets: list[Detection],
         frame_shape: tuple[int, int],
-        jpeg_bytes: Optional[bytes],
+        jpeg_bytes: bytes | None,
     ) -> dict[str, Any]:
         h, w = frame_shape
         mods = self.config.get("modules", {})
@@ -269,9 +261,7 @@ class Pipeline:
             "width": w,
             "height": h,
             "detections": [d.to_dict() for d in dets],
-            "trails": (
-                self.trails.get_trails() if mods.get("tracking", True) else {}
-            ),
+            "trails": (self.trails.get_trails() if mods.get("tracking", True) else {}),
             "zones": self.zones.get_state(),
             "crossing": self.crossing.get_state(),
             "speed": self.speed.get_state(),
@@ -285,7 +275,7 @@ class Pipeline:
         with self._payload_lock:
             return dict(self._latest_payload)
 
-    def get_latest_jpeg(self) -> Optional[bytes]:
+    def get_latest_jpeg(self) -> bytes | None:
         with self._payload_lock:
             return self._latest_jpeg
 
@@ -320,7 +310,7 @@ class Pipeline:
         }
 
     @staticmethod
-    def _gpu_memory_mb() -> Optional[float]:
+    def _gpu_memory_mb() -> float | None:
         try:
             import torch
 
@@ -335,7 +325,7 @@ class Pipeline:
 
     # ----- runtime kontrol (API'den çağrılır) ---------------------------------
 
-    def set_class_filter(self, class_ids: Optional[list[int]]) -> None:
+    def set_class_filter(self, class_ids: list[int] | None) -> None:
         self.class_filter = class_ids if class_ids else None
 
     def apply_config(self, partial: dict) -> dict:
@@ -343,17 +333,13 @@ class Pipeline:
         merged = self.config.update(partial)
 
         if "confidence" in partial or "iou" in partial:
-            self.engine.update_thresholds(
-                merged.get("confidence"), merged.get("iou")
-            )
+            self.engine.update_thresholds(merged.get("confidence"), merged.get("iou"))
         if "device" in partial:
             self.engine.set_device(merged["device"])
         if "model" in partial and partial["model"] != self.engine.model_name:
             self.engine.load_model(partial["model"])
         if "modules" in partial:
-            self.engine.use_tracking = merged.get("modules", {}).get(
-                "tracking", True
-            )
+            self.engine.use_tracking = merged.get("modules", {}).get("tracking", True)
 
         ms = merged.get("module_settings", {})
         self.trails.configure(ms.get("trail_length", self.trails.trail_length))
@@ -369,7 +355,7 @@ class Pipeline:
 
     # ----- export / kayıt eylemleri -------------------------------------------
 
-    def snapshot(self) -> Optional[str]:
+    def snapshot(self) -> str | None:
         jpeg = self.get_latest_jpeg()
         if jpeg is None:
             return None

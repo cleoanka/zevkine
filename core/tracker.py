@@ -27,17 +27,13 @@ class TrackTrails:
         if trail_length != self.trail_length:
             self.trail_length = trail_length
             # Yeni uzunlukla deque'leri yeniden oluştur
-            new: dict[int, deque] = defaultdict(
-                lambda: deque(maxlen=self.trail_length)
-            )
+            new: dict[int, deque] = defaultdict(lambda: deque(maxlen=self.trail_length))
             for tid, pts in self._trails.items():
                 d = deque(pts, maxlen=self.trail_length)
                 new[tid] = d
             self._trails = new
 
-    def update(
-        self, detections: list[Detection], frame_shape: tuple[int, int]
-    ) -> None:
+    def update(self, detections: list[Detection], frame_shape: tuple[int, int]) -> None:
         h, w = frame_shape[:2]
         now = time.monotonic()
         for det in detections:

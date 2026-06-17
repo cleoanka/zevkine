@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict, deque
-from typing import Optional
 
 from ..detection import Detection
 
@@ -29,13 +28,13 @@ class SpeedModule:
 
         # track_id -> son (zaman, normalize y, normalize x)
         self._history: dict[int, deque] = defaultdict(lambda: deque(maxlen=5))
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
 
     def configure(
         self,
-        line_a_y: Optional[float] = None,
-        line_b_y: Optional[float] = None,
-        real_distance_meters: Optional[float] = None,
+        line_a_y: float | None = None,
+        line_b_y: float | None = None,
+        real_distance_meters: float | None = None,
     ) -> None:
         if line_a_y is not None:
             self.line_a_y = float(line_a_y)
@@ -45,9 +44,7 @@ class SpeedModule:
             self.real_distance_meters = float(real_distance_meters)
             self.calibrated = True
 
-    def update(
-        self, detections: list[Detection], frame_shape: tuple[int, int]
-    ) -> None:
+    def update(self, detections: list[Detection], frame_shape: tuple[int, int]) -> None:
         """Her track için referans çizgileri arası piksel hızını m/s'ye çevirir."""
         try:
             h, w = frame_shape[:2]

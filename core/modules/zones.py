@@ -13,7 +13,6 @@ zone'lar geçerli kalır.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from ..detection import Detection
 
@@ -62,7 +61,7 @@ class ZonesModule:
     def __init__(self) -> None:
         self._zones: dict[int, Zone] = {}
         self._next_id = 1
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
 
     # ----- CRUD ---------------------------------------------------------------
 
@@ -102,9 +101,7 @@ class ZonesModule:
 
     # ----- güncelleme ---------------------------------------------------------
 
-    def update(
-        self, detections: list[Detection], frame_shape: tuple[int, int]
-    ) -> None:
+    def update(self, detections: list[Detection], frame_shape: tuple[int, int]) -> None:
         """Her zone için içindeki obje sayısını ve ihlal durumunu günceller."""
         try:
             h, w = frame_shape[:2]

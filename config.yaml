@@ -4,8 +4,10 @@
 #  /api/config POST ile runtime'da güncellenebilir ve buraya yazılır.
 # ============================================================
 
-# Model seçimi: yolov8{n,s,m,l,x}.pt veya yolo11{n,s,m,l,x}.pt
-model: yolo11x.pt
+# Model seçimi: yolo26{n,s,m,l,x}.pt (NMS-free, end-to-end) —
+# geriye dönük: yolo11{n,s,m,l,x}.pt, yolov8{n,s,m,l,x}.pt de desteklenir.
+# YOLO26 native NMS-free inference yapar; DFL kaldırılmıştır.
+model: yolo26x.pt
 
 # Inference cihazı: auto | mps | cuda | cpu
 # auto -> MPS (Apple Silicon) > CUDA > CPU önceliğiyle seçilir

@@ -5,12 +5,12 @@ biri çökerse pipeline'ı durdurmaz. Tüm modüller `update(detections, frame)`
 arayüzünü paylaşır ve görselleştirme için overlay verisi üretir.
 """
 
-from .heatmap import HeatmapModule
-from .zones import ZonesModule
-from .speed import SpeedModule
-from .dwell import DwellModule
-from .crossing import CrossingModule
 from .anomaly import AnomalyModule
+from .crossing import CrossingModule
+from .dwell import DwellModule
+from .heatmap import HeatmapModule
+from .speed import SpeedModule
+from .zones import ZonesModule
 
 __all__ = [
     "HeatmapModule",

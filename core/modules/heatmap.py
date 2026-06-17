@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import base64
 import time
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -37,7 +36,7 @@ class HeatmapModule:
 
         self._acc = np.zeros((self.grid_h, self.grid_w), dtype=np.float32)
         self._last_ts = time.monotonic()
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
 
     def reset(self) -> None:
         self._acc[:] = 0.0
@@ -67,9 +66,7 @@ class HeatmapModule:
         except Exception as exc:
             self.last_error = str(exc)
 
-    def render_overlay(
-        self, out_size: tuple[int, int]
-    ) -> Optional[str]:
+    def render_overlay(self, out_size: tuple[int, int]) -> str | None:
         """
         Isı haritasını renkli PNG (base64 data-uri) olarak döndürür.
         out_size: (genişlik, yükseklik) display boyutu.
@@ -81,9 +78,7 @@ class HeatmapModule:
 
             norm = self._acc / (self._acc.max() + 1e-6)
             norm = (norm * 255).astype(np.uint8)
-            norm = cv2.GaussianBlur(
-                norm, (self.blur_kernel, self.blur_kernel), 0
-            )
+            norm = cv2.GaussianBlur(norm, (self.blur_kernel, self.blur_kernel), 0)
             colored = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
 
             out_w, out_h = out_size

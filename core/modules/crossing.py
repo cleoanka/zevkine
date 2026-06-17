@@ -10,8 +10,6 @@ Koordinatlar normalize (0..1).
 
 from __future__ import annotations
 
-from typing import Optional
-
 from ..detection import Detection
 
 
@@ -33,9 +31,9 @@ class CrossingModule:
         self.count_b_to_a = 0
         # track_id -> son işaret (taraf)
         self._last_side: dict[int, float] = {}
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
 
-    def configure(self, line: Optional[dict] = None) -> None:
+    def configure(self, line: dict | None = None) -> None:
         if line:
             self.line = {
                 "x1": float(line.get("x1", self.line["x1"])),
@@ -49,9 +47,7 @@ class CrossingModule:
         self.count_b_to_a = 0
         self._last_side.clear()
 
-    def update(
-        self, detections: list[Detection], frame_shape: tuple[int, int]
-    ) -> None:
+    def update(self, detections: list[Detection], frame_shape: tuple[int, int]) -> None:
         try:
             h, w = frame_shape[:2]
             for det in detections:

@@ -1,9 +1,12 @@
 """
-inference.py — YOLO inference motoru.
+inference.py — YOLO inference motoru (YOLO26 varsayılan).
 
 YOLOEngine:
   * Cihazı otomatik seçer (MPS > CUDA > CPU) ya da config'ten zorlar.
   * Model'i ultralytics ile yükler; runtime'da hot-swap edilebilir.
+  * Varsayılan model YOLO26 — native NMS-free, end-to-end inference.
+    (DFL kaldırılmıştır; iou eşiği yalnızca eski YOLO11/v8 modelleri için
+    NMS'te kullanılır, YOLO26'da etkisizdir.)
   * ByteTrack ile entegre (model.track) — kalıcı track ID üretir.
   * torch.inference_mode() her zaman aktif.
   * Inference latency ve FPS sayaçlarını tutar.
@@ -17,7 +20,6 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
-from typing import Optional
 
 import numpy as np
 
@@ -56,7 +58,7 @@ class YOLOEngine:
 
     def __init__(
         self,
-        model_name: str = "yolo11x.pt",
+        model_name: str = "yolo26x.pt",
         device_pref: str = "auto",
         confidence: float = 0.35,
         iou: float = 0.45,
@@ -75,7 +77,7 @@ class YOLOEngine:
         self._model = None
         self._lock = threading.RLock()
         self._latency_samples: deque = deque(maxlen=30)
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
         self.ready = False
 
         self.load_model(model_name)
@@ -115,7 +117,7 @@ class YOLOEngine:
                     pass
 
     def update_thresholds(
-        self, confidence: Optional[float] = None, iou: Optional[float] = None
+        self, confidence: float | None = None, iou: float | None = None
     ) -> None:
         with self._lock:
             if confidence is not None:
@@ -128,7 +130,7 @@ class YOLOEngine:
     def predict(
         self,
         frame: np.ndarray,
-        class_filter: Optional[list[int]] = None,
+        class_filter: list[int] | None = None,
     ) -> list[Detection]:
         """
         Tek frame üzerinde inference yapar.
@@ -193,13 +195,31 @@ class YOLOEngine:
         xyxy = boxes.xyxy.cpu().numpy()
         confs = boxes.conf.cpu().numpy()
         cls_ids = boxes.cls.cpu().numpy().astype(int)
-        track_ids = (
-            boxes.id.cpu().numpy().astype(int) if boxes.id is not None else None
-        )
+        track_ids = boxes.id.cpu().numpy().astype(int) if boxes.id is not None else None
 
         names = getattr(res, "names", None) or {
             i: n for i, n in enumerate(COCO_CLASSES)
         }
+
+        # YOLO26 çok-görevli çıktılar (pose / segmentation) — varsa hazırla.
+        # Indeksler boxes ile hizalıdır.
+        kpts_xy = kpts_conf = None
+        keypoints = getattr(res, "keypoints", None)
+        if keypoints is not None and getattr(keypoints, "xy", None) is not None:
+            try:
+                kpts_xy = keypoints.xy.cpu().numpy()  # (N, K, 2)
+                kpts_conf = (
+                    keypoints.conf.cpu().numpy()
+                    if getattr(keypoints, "conf", None) is not None
+                    else None
+                )
+            except Exception:
+                kpts_xy = kpts_conf = None
+
+        mask_polys = None
+        masks = getattr(res, "masks", None)
+        if masks is not None and getattr(masks, "xy", None) is not None:
+            mask_polys = masks.xy  # det başına (P, 2) poligon listesi
 
         for i in range(len(xyxy)):
             cid = int(cls_ids[i])
@@ -210,9 +230,37 @@ class YOLOEngine:
                     confidence=float(confs[i]),
                     bbox=tuple(float(v) for v in xyxy[i]),
                     track_id=int(track_ids[i]) if track_ids is not None else None,
+                    keypoints=self._extract_keypoints(kpts_xy, kpts_conf, i),
+                    mask=self._extract_mask(mask_polys, i),
                 )
             )
         return detections
+
+    @staticmethod
+    def _extract_keypoints(kpts_xy, kpts_conf, i):
+        """i. tespitin iskelet noktalarını [(x, y, conf), ...] olarak döndürür."""
+        if kpts_xy is None or i >= len(kpts_xy):
+            return None
+        pts = kpts_xy[i]
+        confs = kpts_conf[i] if kpts_conf is not None else None
+        out: list[tuple[float, float, float]] = []
+        for k in range(len(pts)):
+            x, y = float(pts[k][0]), float(pts[k][1])
+            c = float(confs[k]) if confs is not None else 1.0
+            out.append((x, y, c))
+        return out or None
+
+    @staticmethod
+    def _extract_mask(mask_polys, i, max_points: int = 48):
+        """i. tespitin segmentasyon poligonunu seyrekleştirerek döndürür."""
+        if mask_polys is None or i >= len(mask_polys):
+            return None
+        poly = mask_polys[i]
+        if poly is None or len(poly) == 0:
+            return None
+        # Yük (payload) küçük kalsın diye poligonu en fazla max_points'e indir
+        step = max(1, len(poly) // max_points)
+        return [(float(p[0]), float(p[1])) for p in poly[::step]]
 
     def reset_tracker(self) -> None:
         """Track ID'leri sıfırlamak için modeli yeniden yükle (basit yol)."""

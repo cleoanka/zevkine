@@ -10,15 +10,12 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from typing import Optional
 
 from ..detection import Detection
 
 
 class AnomalyModule:
-    def __init__(
-        self, window_seconds: float = 30.0, multiplier: float = 2.0
-    ) -> None:
+    def __init__(self, window_seconds: float = 30.0, multiplier: float = 2.0) -> None:
         self.window_seconds = window_seconds
         self.multiplier = multiplier
         # (zaman, sayı) örnekleri
@@ -26,21 +23,19 @@ class AnomalyModule:
         self.is_anomaly = False
         self.current_count = 0
         self.baseline = 0.0
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
 
     def configure(
         self,
-        window_seconds: Optional[float] = None,
-        multiplier: Optional[float] = None,
+        window_seconds: float | None = None,
+        multiplier: float | None = None,
     ) -> None:
         if window_seconds is not None:
             self.window_seconds = float(window_seconds)
         if multiplier is not None:
             self.multiplier = float(multiplier)
 
-    def update(
-        self, detections: list[Detection], frame_shape: tuple[int, int]
-    ) -> None:
+    def update(self, detections: list[Detection], frame_shape: tuple[int, int]) -> None:
         try:
             now = time.monotonic()
             count = len(detections)

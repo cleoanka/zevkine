@@ -19,7 +19,6 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -65,7 +64,7 @@ class _Stats:
     dropped_frames: int = 0
     measured_fps: float = 0.0
     buffer_fill: float = 0.0  # deque doluluk oranı 0..1
-    last_error: Optional[str] = None
+    last_error: str | None = None
     _fps_samples: deque = field(default_factory=lambda: deque(maxlen=30))
 
 
@@ -96,15 +95,15 @@ class CameraManager:
         self._max_probe = max_probe
         self._backend = _backend_for_platform()
 
-        self._cap: Optional[cv2.VideoCapture] = None
-        self._thread: Optional[threading.Thread] = None
+        self._cap: cv2.VideoCapture | None = None
+        self._thread: threading.Thread | None = None
         self._running = threading.Event()
         self._lock = threading.RLock()
 
         # En taze 2 frame: maxlen=2 -> eski frame otomatik düşer (latency yok)
         self._queue: deque = deque(maxlen=2)
 
-        self.current_index: Optional[int] = None
+        self.current_index: int | None = None
         self.current_resolution: str = "720p"
         self.target_fps: float = 30.0
         self.stats = _Stats()
@@ -126,9 +125,7 @@ class CameraManager:
                 w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 fps = self._cap.get(cv2.CAP_PROP_FPS) or self.target_fps
-                cameras.append(
-                    CameraInfo(idx, self._guess_name(idx), w, h, fps)
-                )
+                cameras.append(CameraInfo(idx, self._guess_name(idx), w, h, fps))
                 continue
 
             cap = cv2.VideoCapture(idx, self._backend)
@@ -138,9 +135,7 @@ class CameraManager:
                     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-                    cameras.append(
-                        CameraInfo(idx, self._guess_name(idx), w, h, fps)
-                    )
+                    cameras.append(CameraInfo(idx, self._guess_name(idx), w, h, fps))
             if cap is not None:
                 cap.release()
         return cameras
@@ -186,9 +181,7 @@ class CameraManager:
             self._thread.start()
             return True
 
-    def _open_capture(
-        self, index: int, resolution: str, target_fps: float
-    ) -> None:
+    def _open_capture(self, index: int, resolution: str, target_fps: float) -> None:
         """Yeni bir VideoCapture açar ve özelliklerini ayarlar."""
         cap = cv2.VideoCapture(index, self._backend)
         if resolution in RESOLUTION_PRESETS:
@@ -206,8 +199,8 @@ class CameraManager:
     def switch(
         self,
         index: int,
-        resolution: Optional[str] = None,
-        target_fps: Optional[float] = None,
+        resolution: str | None = None,
+        target_fps: float | None = None,
     ) -> bool:
         """
         Aktif kamerayı kesintisiz değiştirir. Önceki kaynak düzgün release
@@ -273,9 +266,7 @@ class CameraManager:
             self.stats.captured_frames += 1
             self.stats._fps_samples.append(now)
             self._update_fps()
-            self.stats.buffer_fill = len(self._queue) / float(
-                self._queue.maxlen or 1
-            )
+            self.stats.buffer_fill = len(self._queue) / float(self._queue.maxlen or 1)
 
     def _update_fps(self) -> None:
         """Son örneklerden anlık yakalama FPS'i hesaplar."""
@@ -287,7 +278,7 @@ class CameraManager:
 
     # ----- consumer -----------------------------------------------------------
 
-    def read(self) -> Optional[np.ndarray]:
+    def read(self) -> np.ndarray | None:
         """
         En taze frame'i döndürür (kopya). Frame yoksa None.
         Tüketici (inference thread) bunu çağırır.

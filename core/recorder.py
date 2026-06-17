@@ -13,10 +13,8 @@ from __future__ import annotations
 import csv
 import json
 import threading
-import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -31,12 +29,12 @@ class VideoRecorder:
 
     def __init__(self, export_dir: Path) -> None:
         self.export_dir = export_dir
-        self._writer: Optional[cv2.VideoWriter] = None
+        self._writer: cv2.VideoWriter | None = None
         self._lock = threading.Lock()
         self.recording = False
-        self.current_path: Optional[Path] = None
+        self.current_path: Path | None = None
         self._fps = 30.0
-        self._size: Optional[tuple[int, int]] = None
+        self._size: tuple[int, int] | None = None
 
     def start(self, frame: np.ndarray, fps: float = 30.0) -> Path:
         """Verilen ilk frame'in boyutuna göre yazıcıyı başlatır."""
@@ -48,9 +46,7 @@ class VideoRecorder:
             self._fps = max(fps, 1.0)
             path = self.export_dir / f"recording_{_timestamp()}.mp4"
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            self._writer = cv2.VideoWriter(
-                str(path), fourcc, self._fps, self._size
-            )
+            self._writer = cv2.VideoWriter(str(path), fourcc, self._fps, self._size)
             self.recording = True
             self.current_path = path
             return path
@@ -63,7 +59,7 @@ class VideoRecorder:
                     frame = cv2.resize(frame, self._size)
                 self._writer.write(frame)
 
-    def stop(self) -> Optional[Path]:
+    def stop(self) -> Path | None:
         with self._lock:
             if self._writer is not None:
                 self._writer.release()
@@ -87,9 +83,7 @@ def save_snapshot(frame: np.ndarray, export_dir: Path) -> Path:
     return path
 
 
-def export_log(
-    events: list[dict], export_dir: Path, fmt: str = "json"
-) -> Path:
+def export_log(events: list[dict], export_dir: Path, fmt: str = "json") -> Path:
     """Detection event listesini JSON ya da CSV olarak yazar."""
     ts = _timestamp()
     if fmt == "csv":

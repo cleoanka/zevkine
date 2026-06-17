@@ -24,11 +24,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
     """İç içe dict'leri özyinelemeli birleştirir (override öncelikli)."""
     result = copy.deepcopy(base)
     for key, value in override.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = _deep_merge(result[key], value)
         else:
             result[key] = value
@@ -56,7 +52,7 @@ class Config:
         """Dosyadan yeniden okur. Dosya yoksa varsayılanlarla başlar."""
         with self._lock:
             if self._path.exists():
-                with open(self._path, "r", encoding="utf-8") as f:
+                with open(self._path, encoding="utf-8") as f:
                     self._data = yaml.safe_load(f) or {}
             else:
                 self._data = {}
